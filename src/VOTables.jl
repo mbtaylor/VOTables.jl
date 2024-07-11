@@ -231,6 +231,9 @@ function _filltable!(cols, tblx, ::Val{:BINARY})
             curdata = @view dataraw[i:i+len-1]
             i += len
             value = _parse_binary(vo2jltype(colspec), curdata)
+            if haskey(colspec, :nulltxt) && _parse(eltype(col), colspec[:nulltxt]) == value
+                value = missing
+            end
             push!(col, value)
         end
     end
@@ -305,6 +308,8 @@ fieldattrs(tblxml) = @p let
         attrs = @p attributes(fieldxml) |> map(Symbol(nodename(_)) => nodecontent(_)) |> dictionary
         desc = @p fieldxml |> _findall("ns:DESCRIPTION", __, ns) |> maybe(nodecontent ∘ only)(__)
         isnothing(desc) || insert!(attrs, :description, desc)
+        values = @p fieldxml |> _findall("ns:VALUES", __, ns) |> filter(v->haskey(v, "null"))
+        length(values) == 0 || insert!(attrs, :nulltxt, values[1]["null"])
         return attrs
     end
 end
