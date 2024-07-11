@@ -159,6 +159,8 @@ function _filltable!(cols, tblx)
         _filltable!(cols, tblx, Val(:TABLEDATA))
     elseif nodename(childx) == "BINARY2"
         _filltable!(cols, tblx, Val(:BINARY2))
+    elseif nodename(childx) == "BINARY"
+        _filltable!(cols, tblx, Val(:BINARY))
     else
         error("Unsupported table data element: $(nodename(childx))")
     end
@@ -199,6 +201,37 @@ function _filltable!(cols, tblx, ::Val{:BINARY2})
                 value = _parse_binary(vo2jltype(colspec), curdata)
                 push!(col, value)
             end
+        end
+    end
+    return cols
+end
+
+function _filltable!(cols, tblx, ::Val{:BINARY})
+    streamx = @p let
+        tblx
+        @aside ns = ["ns" => namespace(__)]
+        findall("ns:DATA/ns:BINARY/ns:STREAM", __, ns)
+        only
+    end
+    streamx["encoding"] == "base64" || error("Unsupported encoding: $(streamx["encoding"])")
+    dataraw = base64decode(nodecontent(streamx))
+    i = 1
+    while true
+        i == length(dataraw) + 1 && break
+        @assert i ≤ length(dataraw)
+        for (icol, (col, colspec)) in enumerate(zip(cols, fieldattrs(tblx)))
+            len = vo2nbytes_fixwidth(colspec)
+            len = if isnothing(len)
+                lenbytes = @view dataraw[i:i+4-1]
+                i += 4
+                _parse_binary(Int32, lenbytes)
+            else
+                len
+            end
+            curdata = @view dataraw[i:i+len-1]
+            i += len
+            value = _parse_binary(vo2jltype(colspec), curdata)
+            push!(col, value)
         end
     end
     return cols
