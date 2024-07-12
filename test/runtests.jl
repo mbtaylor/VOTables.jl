@@ -203,6 +203,22 @@ end
     @test length(tbl) == 5
 end
 
+@testitem "read formats" begin
+    include("testutil.jl")
+    formats = ["tabledata", "binary2", "binary"]
+    # These files are written (using STILTS) by a script in the data directory.
+    # They have different serializations but, as far as possible,
+    # identical content.
+    files = map(fmt -> joinpath(@__DIR__, "data/test-$fmt.vot"), formats)
+    tables = VOTables.read.(files)
+    @test length(tables) == 3
+    t1 = tables[1]
+    @test length(Tables.columns(t1)) == 8
+    @test length(Tables.rows(t1)) == 10
+    @test isapproxtable(t1, tables[2])
+    @test isapproxtable(t1, tables[3])
+end
+
 @testitem "write" begin
     using StructArrays.Tables
     using DictArrays, StructArrays
