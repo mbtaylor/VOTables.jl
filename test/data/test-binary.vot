@@ -1,0 +1,27 @@
+<?xml version='1.0'?>
+<VOTABLE version="1.4"
+ xmlns="http://www.ivoa.net/xml/VOTable/v1.3">
+<!--
+ !  VOTable written by STIL version 4.2-1+ (uk.ac.starlink.votable.VOTableWriter)
+ !  at 2024-07-19T14:37:30
+ !-->
+<RESOURCE>
+<TABLE nrows="10">
+<FIELD datatype="int" name="b_int">
+<VALUES null='-2147483648'/>
+</FIELD>
+<FIELD datatype="double" name="b_double"/>
+<FIELD arraysize="*" datatype="char" name="b_string"/>
+<DATA>
+<BINARY>
+<STREAM encoding='base64'>
+AAAAAAAAAAAAAAAAAAAABHplcm+AAAAAP/AAAAAAAAAAAAADb25lAAAAAn/4AAAA
+AAAAAAAAA3R3bwAAAANACAAAAAAAAAAAAAAAAAAEQBAAAAAAAAAAAAAEZm91cgAA
+AAVAFAAAAAAAAAAAAARmaXZlAAAABkAYAAAAAAAAAAAAA3NpeAAAAAdAHAAAAAAA
+AAAAAAVzZXZlbgAAAAhAIAAAAAAAAAAAAAVlaWdodAAAAAlAIgAAAAAAAAAAAAA=
+</STREAM>
+</BINARY>
+</DATA>
+</TABLE>
+</RESOURCE>
+</VOTABLE>
