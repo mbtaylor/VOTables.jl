@@ -233,6 +233,8 @@ function _filltable!(cols, tblx, ::Val{:BINARY})
             value = _parse_binary(vo2jltype(colspec), curdata)
             if haskey(colspec, :nulltxt) && _parse(eltype(col), colspec[:nulltxt]) == value
                 value = missing
+            elseif value isa AbstractArray && all(ismissing, value)
+                value = missing
             end
             push!(col, value)
         end
