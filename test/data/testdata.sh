@@ -4,7 +4,7 @@
 # See http://www.starlink.ac.uk/stilts/
 
 nrow=10
-coltypes=b
+coltypes=s
 
 test -r stilts.jar || curl -OL http://www.starlink.ac.uk/stilts/stilts.jar
 for fmt in tabledata binary2 binary

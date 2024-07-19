@@ -214,7 +214,7 @@ end
     tables = VOTables.read.(files)
     @test length(tables) == 3
     t1 = tables[1]
-    @test length(Tables.columns(t1)) == 3
+    @test length(Tables.columns(t1)) == 8
     @test length(Tables.rows(t1)) == 10
     @test isapproxtable(t1, tables[2])
     @test isapproxtable(t1, tables[3])
