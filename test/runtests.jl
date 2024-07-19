@@ -214,7 +214,7 @@ end
     tables = VOTables.read.(files)
     @test length(tables) == 3
     t1 = tables[1]
-    @test length(Tables.columns(t1)) == 15
+    @test length(Tables.columns(t1)) == 22
     @test length(Tables.rows(t1)) == 10
     @test isapproxtable(t1, tables[2])
     # BINARY format has no way to mark fixed-width array values as null, so make allowances
