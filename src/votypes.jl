@@ -14,21 +14,22 @@ const TYPE_VO_TO_JL = Dict(
     "doubleComplex" => ComplexF64,
 )
 
-const TYPE_VO_TO_NBYTES = Dict(
-    "boolean" => 1,
-    # "bit" => 1,
-    "unsignedByte" => 1,
-    "char" => 1,
-    "unicodeChar" => 2,
-    "short" => 2,
-    "int" => 4,
-    "long" => 8,
-    "float" => 4,
-    "double" => 8,
-    "floatComplex" => 8,
-    "doubleComplex" => 16,
-)
+fixbytecount(size) = nel -> nel * size
 
+const TYPE_VO_TO_NBYTEFUNC = Dict(
+    "boolean" => fixbytecount(1),
+    "bit" => nel -> (nel + 7) ÷ 8,
+    "unsignedByte" => fixbytecount(1),
+    "char" => fixbytecount(1),
+    "unicodeChar" => fixbytecount(2),
+    "short" => fixbytecount(2),
+    "int" => fixbytecount(4),
+    "long" => fixbytecount(8),
+    "float" => fixbytecount(4),
+    "double" => fixbytecount(8),
+    "floatComplex" => fixbytecount(8),
+    "doubleComplex" => fixbytecount(16),
+)
 
 function vo2jltype(colspec)
     arraysize = get(colspec, :arraysize, nothing)
@@ -65,7 +66,7 @@ function vo2nbytes_fixwidth(colspec)
     arraysize = get(colspec, :arraysize, "1")
     arraysize[end] == '*' && return nothing
     nel = parse.(Int64, split(arraysize, "x")) |> prod
-    return nel * TYPE_VO_TO_NBYTES[colspec[:datatype]]
+    return TYPE_VO_TO_NBYTEFUNC[colspec[:datatype]](nel)
 end
 
 

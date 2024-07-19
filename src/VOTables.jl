@@ -41,7 +41,7 @@ Base.@kwdef struct ColMeta
     attrs::Dictionary{Symbol,String}
     basetype::DataType
     jltype::DataType
-    typesize::Int8
+    typesizefunc
     fixwidth::Union{Int32,Nothing}
     nullvalue
 end
@@ -200,7 +200,8 @@ function _filltable!(cols, tblx, ::Val{:BINARY2})
             len = if isnothing(len)
                 lenbytes = @view dataraw[i:i+4-1]
                 i += 4
-                len = _parse_binary(Int32, lenbytes) * colmeta.typesize
+                nel = _parse_binary(Int32, lenbytes)
+                len = colmeta.typesizefunc(nel)
             else
                 len
             end
@@ -236,7 +237,8 @@ function _filltable!(cols, tblx, ::Val{:BINARY})
             len = if isnothing(len)
                 lenbytes = @view dataraw[i:i+4-1]
                 i += 4
-                _parse_binary(Int32, lenbytes) * colmeta.typesize
+                nel = _parse_binary(Int32, lenbytes)
+                colmeta.typesizefunc(nel)
             else
                 len
             end
@@ -324,7 +326,7 @@ colmetas(tblxml) = @p let
         attrs = @p attributes(fieldxml) |> map(Symbol(nodename(_)) => nodecontent(_)) |> dictionary
         basetype = TYPE_VO_TO_JL[attrs[:datatype]]
         jltype = vo2jltype(attrs)
-        typesize = TYPE_VO_TO_NBYTES[attrs[:datatype]]
+        typesizefunc = TYPE_VO_TO_NBYTEFUNC[attrs[:datatype]]
         fixwidth = vo2nbytes_fixwidth(attrs)
         nullvalues = @p let 
             fieldxml
@@ -336,7 +338,7 @@ colmetas(tblxml) = @p let
         nullvalue = isempty(nullvalues) ? nothing : nullvalues[1]
         desc = @p fieldxml |> _findall("ns:DESCRIPTION", __, ns) |> maybe(nodecontent ∘ only)(__)
         isnothing(desc) || insert!(attrs, :description, desc)
-        return ColMeta(attrs=attrs, basetype=basetype, jltype=jltype, typesize=typesize, fixwidth=fixwidth, nullvalue=nullvalue)
+        return ColMeta(attrs=attrs, basetype=basetype, jltype=jltype, typesizefunc=typesizefunc, fixwidth=fixwidth, nullvalue=nullvalue)
     end
 end
 
