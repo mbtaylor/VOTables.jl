@@ -37,6 +37,15 @@ struct VOTableException <: Exception
     message::String
 end
 
+Base.@kwdef struct ColMeta
+    attrs::Dictionary{Symbol,String}
+    basetype::DataType
+    jltype::DataType
+    typesize::Int8
+    fixwidth::Union{Int32,Nothing}
+    nullvalue
+end
+
 # support Cols()?
 # support <COOSYS> tag
 
@@ -44,9 +53,10 @@ read(votfile; kwargs...) = read(StructArray, votfile; kwargs...)
 
 function read(result_type, votfile; postprocess=true, unitful=false, strict=true)
     tblx = tblxml(votfile; strict)
-    _fieldattrs = fieldattrs(tblx)
+    _colmetas = colmetas(tblx)
+    _fieldattrs = map(m->m.attrs, _colmetas)
     colnames = @p _fieldattrs map(Symbol(_[:name]))
-    colarrays = @p _fieldattrs map(Union{vo2jltype(_),Missing}[])
+    colarrays = map(c -> Union{c.jltype,Missing}[], _colmetas)
     @p let
         colarrays
         _filltable!(__, tblx)
@@ -167,6 +177,7 @@ function _filltable!(cols, tblx)
 end
 
 function _filltable!(cols, tblx, ::Val{:BINARY2})
+    _colmetas = colmetas(tblx)
     streamx = @p let
         tblx
         @aside ns = ["ns" => namespace(__)]
@@ -175,7 +186,7 @@ function _filltable!(cols, tblx, ::Val{:BINARY2})
     end
     streamx["encoding"] == "base64" || error("Unsupported encoding: $(streamx["encoding"])")
     dataraw = base64decode(nodecontent(streamx))
-    nnullbytes = let ncols = length(fieldattrs(tblx))
+    nnullbytes = let ncols = length(_colmetas)
         cld(ncols, 8)
     end
     i = 1
@@ -184,12 +195,12 @@ function _filltable!(cols, tblx, ::Val{:BINARY2})
         @assert i ≤ length(dataraw)
         nullbytes = @view dataraw[i:i+nnullbytes-1]
         i += nnullbytes
-        for (icol, (col, colspec)) in enumerate(zip(cols, fieldattrs(tblx)))
-            len = vo2nbytes_fixwidth(colspec)
+        for (icol, (col, colmeta)) in enumerate(zip(cols, _colmetas))
+            len = colmeta.fixwidth
             len = if isnothing(len)
                 lenbytes = @view dataraw[i:i+4-1]
                 i += 4
-                len = _parse_binary(Int32, lenbytes) * TYPE_VO_TO_NBYTES[colspec[:datatype]]
+                len = _parse_binary(Int32, lenbytes) * colmeta.typesize
             else
                 len
             end
@@ -198,7 +209,7 @@ function _filltable!(cols, tblx, ::Val{:BINARY2})
             if nth_bit(nullbytes[div(icol-1, 8)+1], 8-mod(icol-1, 8))
                 push!(col, missing)
             else
-                value = _parse_binary(vo2jltype(colspec), curdata)
+                value = _parse_binary(colmeta.jltype, curdata)
                 push!(col, value)
             end
         end
@@ -207,6 +218,7 @@ function _filltable!(cols, tblx, ::Val{:BINARY2})
 end
 
 function _filltable!(cols, tblx, ::Val{:BINARY})
+    _colmetas = colmetas(tblx)
     streamx = @p let
         tblx
         @aside ns = ["ns" => namespace(__)]
@@ -219,22 +231,24 @@ function _filltable!(cols, tblx, ::Val{:BINARY})
     while true
         i == length(dataraw) + 1 && break
         @assert i ≤ length(dataraw)
-        for (icol, (col, colspec)) in enumerate(zip(cols, fieldattrs(tblx)))
-            len = vo2nbytes_fixwidth(colspec)
+        for (icol, (col, colmeta)) in enumerate(zip(cols, _colmetas))
+            len = colmeta.fixwidth
             len = if isnothing(len)
                 lenbytes = @view dataraw[i:i+4-1]
                 i += 4
-                _parse_binary(Int32, lenbytes) * TYPE_VO_TO_NBYTES[colspec[:datatype]]
+                _parse_binary(Int32, lenbytes) * colmeta.typesize
             else
                 len
             end
             curdata = @view dataraw[i:i+len-1]
             i += len
-            value = _parse_binary(vo2jltype(colspec), curdata)
-            if haskey(colspec, :nulltxt) && _parse(eltype(col), colspec[:nulltxt]) == value
-                value = missing
-            elseif value isa AbstractArray && all(ismissing, value)
-                value = missing
+            value = _parse_binary(colmeta.jltype, curdata)
+            if !ismissing(value)
+                if value == colmeta.nullvalue
+                    value = missing
+                elseif value isa AbstractArray && all(ismissing, value)
+                    value = missing
+                end
             end
             push!(col, value)
         end
@@ -302,17 +316,27 @@ description(tblxml) = @p let
     nodecontent
 end
 
-fieldattrs(tblxml) = @p let
+colmetas(tblxml) = @p let
     tblxml
     @aside ns = _namespaces(__)
     _findall("ns:FIELD", __, ns)
     map() do fieldxml
         attrs = @p attributes(fieldxml) |> map(Symbol(nodename(_)) => nodecontent(_)) |> dictionary
+        basetype = TYPE_VO_TO_JL[attrs[:datatype]]
+        jltype = vo2jltype(attrs)
+        typesize = TYPE_VO_TO_NBYTES[attrs[:datatype]]
+        fixwidth = vo2nbytes_fixwidth(attrs)
+        nullvalues = @p let 
+            fieldxml
+            _findall("ns:VALUES", __, ns)
+            filter(v->haskey(v, "null"))
+            map(v -> v["null"])
+            map(txt -> try parse(basetype, txt) catch err nothing end)
+        end
+        nullvalue = isempty(nullvalues) ? nothing : nullvalues[1]
         desc = @p fieldxml |> _findall("ns:DESCRIPTION", __, ns) |> maybe(nodecontent ∘ only)(__)
         isnothing(desc) || insert!(attrs, :description, desc)
-        values = @p fieldxml |> _findall("ns:VALUES", __, ns) |> filter(v->haskey(v, "null"))
-        length(values) == 0 || insert!(attrs, :nulltxt, values[1]["null"])
-        return attrs
+        return ColMeta(attrs=attrs, basetype=basetype, jltype=jltype, typesize=typesize, fixwidth=fixwidth, nullvalue=nullvalue)
     end
 end
 
